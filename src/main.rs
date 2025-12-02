@@ -1,12 +1,13 @@
-use std::collections::HashMap;
+use std::fmt::format;
 
 use iced::{
-    Element, Task, Theme,
+    Element, Font, Task, Theme,
     widget::{container, text_editor},
 };
 
 use crate::{
-    config::{AppConfig, get_config},
+    audio::{micro::AudioRecorder, stt::LocalTranscriber},
+    config::{AppConfig, get_config, save_user_settings},
     history::history::{History, get_history},
     ui::{
         chat::get_chat_view, messages::UIMessage, new_conversation::get_new_conversation_view,
@@ -14,6 +15,7 @@ use crate::{
     },
 };
 
+mod audio;
 mod config;
 mod history;
 mod ui;
@@ -41,6 +43,7 @@ struct PotatoApp {
     pub user_settings: text_editor::Content,
     pub input_error: String,
     pub history: History,
+    pub audio_rec: AudioRecorder,
 }
 
 impl Default for PotatoApp {
@@ -54,6 +57,7 @@ impl Default for PotatoApp {
             user_settings: text_editor::Content::new(),
             input_error: "".to_string(),
             history: get_history(),
+            audio_rec: AudioRecorder::new().unwrap(),
         }
     }
 }
@@ -91,9 +95,12 @@ impl PotatoApp {
             }
             UIMessage::SaveSettings => {
                 self.input_error = "".to_string();
-                match toml::from_str(&self.user_settings.text()) {
+                match toml::from_str::<AppConfig>(&self.user_settings.text()) {
                     Ok(new_config) => {
-                        self.config = new_config;
+                        self.config = new_config.clone();
+                        if save_user_settings(new_config).is_err() {
+                            self.input_error = "Error when writing user config".to_string();
+                        };
                     }
                     Err(e) => {
                         self.input_error = format!("Error when parsing new config {}", e);
@@ -109,6 +116,26 @@ impl PotatoApp {
                 self.view = AppView::NewConversation;
                 Task::none()
             }
+            UIMessage::StartAudio => match self.audio_rec.start() {
+                Ok(_) => Task::none(),
+                Err(e) => {
+                    println!("Error during trying to record input: {}", e);
+                    Task::none()
+                }
+            },
+            UIMessage::EndAudio => match self.audio_rec.stop() {
+                Ok(_) => {
+                    self.messages.push(AiMessage {
+                        from: AiMessageFrom::User,
+                        content: "Sent vocal".to_string(),
+                    });
+                    Task::none()
+                }
+                Err(e) => {
+                    println!("Error during trying to record input: {}", e);
+                    Task::none()
+                }
+            },
             _ => Task::none(),
         }
     }
@@ -125,6 +152,7 @@ impl PotatoApp {
 }
 
 fn main() -> iced::Result {
+    LocalTranscriber::new("models/ggml-base.en.bin");
     iced::application("Potato Assistant", PotatoApp::update, PotatoApp::view)
         .theme(|_| Theme::Dark)
         .run()

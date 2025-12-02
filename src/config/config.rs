@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::{fmt::format, fs, path::PathBuf};
 
 use dotenvy::dotenv;
 use serde::{Deserialize, Serialize};
@@ -60,7 +60,7 @@ fn get_default_config() -> AppConfig {
 
 pub fn get_config() -> AppConfig {
     let mut config: AppConfig = match load_env() {
-        Ok(config) => config,
+        Ok(user_config) => get_default_config().override_with(user_config),
         Err(e) => {
             println!("{}", e);
             get_default_config()
@@ -78,12 +78,12 @@ pub fn get_config() -> AppConfig {
     config
 }
 
-pub fn load_env() -> Result<AppConfig, String> {
+pub fn load_env() -> Result<UserConfig, String> {
     dotenv().ok();
 
-    match envy::from_env::<AppConfig>() {
+    match envy::from_env::<UserConfig>() {
         Ok(config) => Ok(config),
-        Err(e) => Err(format!("Erreur de configuration : {}", e)),
+        Err(e) => Err(format!("Config error in env : {}", e)),
     }
 }
 
@@ -109,4 +109,11 @@ pub fn get_config_path() -> PathBuf {
     dirs::home_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join(".potato_config")
+}
+
+pub fn save_user_settings(new_settings: AppConfig) -> Result<(), String> {
+    let config_path = get_config_path();
+    let config_str = toml::to_string(&new_settings)
+        .map_err(|e| format!("Cannot serialize new config: {}", e))?;
+    fs::write(config_path, config_str).map_err(|e| format!("Cannot write settings file: {}", e))
 }

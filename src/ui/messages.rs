@@ -13,4 +13,6 @@ pub enum UIMessage {
     NewConversation,
     SubmitNewConversation,
     CancelNewConversation,
+    StartAudio,
+    EndAudio,
 }

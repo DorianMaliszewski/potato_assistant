@@ -51,6 +51,20 @@ fn get_right_view(state: &crate::PotatoApp) -> Element<'_, messages::UIMessage> 
     }))
     .spacing(20)
     .width(Length::Fill);
+
+    let mut mic_button = button("M Start").on_press(UIMessage::StartAudio);
+    let mut chat_text_input = text_input("Enter your message", state.user_input.as_str());
+    let mut send_button = button("Send");
+
+    if state.audio_rec.recording {
+        mic_button = button("M Stop").on_press(UIMessage::EndAudio);
+    } else {
+        chat_text_input = chat_text_input
+            .on_input(UIMessage::UserInputHandle)
+            .on_submit(UIMessage::SendMessage);
+        send_button = send_button.on_press(UIMessage::SendMessage)
+    }
+
     container(
         column![
             row![
@@ -59,14 +73,7 @@ fn get_right_view(state: &crate::PotatoApp) -> Element<'_, messages::UIMessage> 
             ]
             .align_y(Alignment::Center),
             scrollable(messages_column).height(Length::Fill),
-            row![
-                text_input("Enter your message", state.user_input.as_str())
-                    .on_input(UIMessage::UserInputHandle)
-                    .on_submit(UIMessage::SendMessage),
-                button("Send").on_press(UIMessage::SendMessage),
-                button("Micro").on_press(UIMessage::SendMessage)
-            ]
-            .spacing(10)
+            row![chat_text_input, send_button, mic_button].spacing(10)
         ]
         .spacing(10)
         .padding(10)
